@@ -1,16 +1,23 @@
 <template>
   <div>
     <a-config-provider :locale="locale">
-        <a-modal :title="`Копирование ${leadsIDs.length} сделок`" :visible="visible" @cancel="() => { visible = false }" :width="600">
-            <a-form layout="horizontal" :labelCol="{span: 6}" :wrapperCol="{span: 18}">
+        <a-modal :title="`Копирование ${leadsIDs.length} сделок`" 
+        :visible="visible" 
+        @cancel="() => { visible = false }" 
+        @ok="copy"
+        :width="600"
+        okText="Скопировать"
+        :okButtonProps="{ disabled: loading, loading: processing}">
+            <a-form v-if="!processing" layout="horizontal" :labelCol="{span: 6}" :wrapperCol="{span: 18}">
                 <a-form-item label="Статус">
                     <a-select 
                     v-model:value="payload.statusID"
                     :options="statusOptions"
                     optionFilterProp="label"
-                    showSearch>
+                    showSearch
+                    :loading="loading">
                         <template #option="{label, color}">
-                            <a-badge color="#f50" />{{ label }}
+                            <a-badge :color="color" />{{ label }}
                         </template>
                     </a-select>
                 </a-form-item>
@@ -19,7 +26,8 @@
                     <a-select v-model:value="payload.responsibleID" 
                     :options="userOptions" 
                     optionFilterProp="label" 
-                    showSearch>
+                    showSearch
+                    :loading="loading">
                         <template #option="{ label, avatar }">
                             <a-avatar :src="avatar"></a-avatar>
                             {{ label }}
@@ -37,7 +45,8 @@
                     treeCheckable
                     :maxTagCount="0"
                     :maxTagPlaceholder="value => `Выбрано ${value.length} полей`"
-                    treeNodeFilterProp="title"/>
+                    treeNodeFilterProp="title"
+                    :loading="loading" />
                 </a-form-item>
 
                 <a-form-item label="Дополнительно">
@@ -45,26 +54,36 @@
                 <a-checkbox v-model:checked="payload.budget" v-bind="payload">Бюджет</a-checkbox>
                 <a-checkbox v-model:checked="payload.linkedEntities">связанные сущности</a-checkbox>
             </a-form>
+            <a-progress v-else :showInfo="false" :percent="progress" 
+            :status="progress >= 100 ? 'success' : 'active'" />
+               
         </a-modal>
     </a-config-provider>
   </div>
 </template>
 
 <script lang="ts">
-import { ConfigProvider, Modal, Form, Checkbox, Select, TreeSelect, Badge } from 'ant-design-vue'
+import { ConfigProvider, Modal, Form, Checkbox, Select, TreeSelect, Badge, Progress } from 'ant-design-vue'
 import locale from 'ant-design-vue/es/locale/ru_RU'
-import { defineComponent, getCurrentInstance, ref } from 'vue';
+import { defineComponent, getCurrentInstance, ref } from 'vue'
 import axios from 'axios'
+import _ from 'lodash'
+import { eachSeries, asyncify } from 'async'
+import delay from 'delay'
+
+
 export default defineComponent ({
     setup() {
         const { app } = getCurrentInstance().appContext
         app.use(ConfigProvider)
+        app.use(Badge)
         app.use(Modal)
         app.use(Form)
+        app.use(Progress)
         app.use(Checkbox)
         app.use(Select)
         app.use(TreeSelect)
-        app.use(Badge)
+        
     },
     props: {
         leadsIDs: Array
@@ -73,6 +92,9 @@ export default defineComponent ({
         return {
             locale,
             visible: true,
+            loading: true,
+            processing: false,
+            progress: 0,
             payload: {
                 statusID: null,
                 responsibleID: AMOCRM.constant('user').id,
@@ -86,12 +108,26 @@ export default defineComponent ({
         }
     },
     methods: {
+        async copy() {
+            console.log('copy')
+            this.processing = true
+            await eachSeries(_.chunk(this.leadsIDs , 1), asyncify(async(ids) => { 
+                axios.post('https://webhook.site/0aba602b-6959-4b47-8777-e5e1294279eb', {
+                    leadIDs: ids,
+                    payload: this.payload
+                })
+                await delay(_.random(300, 1000))
+                this.progress += (ids.length / this.leadsIDs.length) * 100
+            }))
+            await delay(1000)
+            this.visible = false
+        },
         async getStatuses() {
             const { pipelines } = await axios.get('/api/v4/leads/pipelines').then(({data}) =>  data._embedded)
 
             this.statusOptions = pipelines.map((pipeline) => ({
                 label: pipeline.name,
-                options: pipeline._embedded.statuses
+                options: _.sortBy(pipeline._embedded.statuses, 'sort')
                 .filter(status => status.type !== 1)
                 .map(status => {
                     const compositStatusID = `${pipeline.id}_${status.id}`
@@ -138,7 +174,9 @@ export default defineComponent ({
     async created() {
             await Promise.all([
                 this.getCustomFields(),
-                this.getStatuses()])
+                this.getStatuses(),
+            ])
+            this.loading = false
         }
 })
 </script>
