@@ -25,6 +25,9 @@ export default function (amoWidget) {
           },
         async render () {
           (await getWidget()).onRender()
+          if (AMOCRM.isCard()) {
+            (await getWidget()).wrapFields()
+          }
           return true;
           },
         dpSettings () {},
@@ -37,11 +40,7 @@ export default function (amoWidget) {
         },
         onSalesbotDesignerSave (handler_code, params) {},
         leads: {
-          async selected () {
-            const { selected } = amoWidget.list_selected()
-            const leads: number[] = selected.map(({id}) => id)
-            await (await getWidget()).openModal(leads)
-          }
+          selected () {}
         },
         todo: {
           selected: function () {}

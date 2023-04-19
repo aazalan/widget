@@ -3,19 +3,19 @@ import * as path from 'path';
 
 export const config: Config = {
     name: {
-        ru: 'Виджет 2'
+        ru: 'Перенос слов'
     },
     description: {
-        ru: 'Первый виджет 2'
+        ru: 'Перенос слов в карточке'
     },
     shortDescription: {
-        ru: 'Краткое описание виджета'
+        ru: 'Перенос'
     },
     tourDescription: {
         ru: 'Установи меня'
     },
     advancedSettingsTitle: {
-        ru: 'Настройки тут'
+        ru: 'Настройки переноса слов'
     },
     version: '1.0.0',
     fakeConfig: {
